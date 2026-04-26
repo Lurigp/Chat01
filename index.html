@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Seguro - Login & Cadastro</title>
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: #f0f2f5; }
+        
+        /* Estilo da Tela de Login */
+        #auth-container { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #075e54; display: flex; justify-content: center; align-items: center; z-index: 100; 
+        }
+        .auth-card { 
+            background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+            width: 90%; max-width: 400px; text-align: center;
+        }
+        .auth-card h2 { color: #075e54; margin-bottom: 20px; }
+        .auth-card input { 
+            width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; 
+            border-radius: 5px; box-sizing: border-box; font-size: 16px;
+        }
+        .auth-card button { 
+            width: 100%; padding: 12px; margin-top: 10px; border: none; 
+            border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.3s;
+        }
+        #btn-login { background: #075e54; color: white; }
+        #btn-signup { background: transparent; color: #075e54; border: 1px solid #075e54; }
+        
+        /* Estilo do Chat (Oculto inicialmente) */
+        #chat-app { display: none; flex-direction: column; height: 100vh; }
+        #header { background: #075e54; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        #messages-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #e5ddd5; }
+        .message { max-width: 70%; padding: 10px 15px; border-radius: 15px; font-size: 16px; word-wrap: break-word; }
+        .sent { align-self: flex-end; background: #dcf8c6; border-bottom-right-radius: 2px; }
+        .received { align-self: flex-start; background: white; border-bottom-left-radius: 2px; }
+        #input-area { display: flex; padding: 15px; background: #f0f0f0; border-top: 1px solid #ddd; }
+        #message-input { flex: 1; border: 1px solid #ccc; padding: 12px 20px; border-radius: 25px; outline: none; }
+        #send-btn { background: #075e54; color: white; border: none; width: 45px; height: 45px; margin-left: 10px; border-radius: 50%; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-container">
+        <div class="auth-card">
+            <h2>Bem-vindo ao Chat</h2>
+            <input type="email" id="auth-email" placeholder="E-mail">
+            <input type="password" id="auth-password" placeholder="Senha (min 6 caracteres)">
+            <button id="btn-login">Entrar</button>
+            <button id="btn-signup">Criar Nova Conta</button>
+        </div>
+    </div>
+
+    <div id="chat-app">
+        <div id="header">
+            <span>Chat Online</span>
+            <button id="btn-logout" style="background:none; border:1px solid white; color:white; border-radius:5px; cursor:pointer;">Sair</button>
+        </div>
+        <div id="messages-box"></div>
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="Digite uma mensagem..." autocomplete="off">
+            <button id="send-btn">➤</button>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBRIwyPRnIVWNK_ET46z95BBBtCqhUUM3s",
+        authDomain: "chat01-a42e5.firebaseapp.com",
+        projectId: "chat01-a42e5",
+        storageBucket: "chat01-a42e5.firebasestorage.app",
+        messagingSenderId: "652835740480",
+        appId: "1:652835740480:web:9714189432527028cf38a5",
+        measurementId: "G-97R16H8592"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const colRef = collection(db, "mensagens");
+
+    // Elementos da UI
+    const authContainer = document.getElementById('auth-container');
+    const chatApp = document.getElementById('chat-app');
+    const emailInput = document.getElementById('auth-email');
+    const passwordInput = document.getElementById('auth-password');
+    const messagesBox = document.getElementById('messages-box');
+
+    // 1. Monitorar Estado de Autenticação
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            authContainer.style.display = 'none';
+            chatApp.style.display = 'flex';
+            carregarMensagens();
+        } else {
+            authContainer.style.display = 'flex';
+            chatApp.style.display = 'none';
+            messagesBox.innerHTML = '';
+        }
+    });
+
+    // 2. Cadastro
+    document.getElementById('btn-signup').addEventListener('click', () => {
+        createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value)
+            .catch(err => alert("Erro ao criar conta: " + err.message));
+    });
+
+    // 3. Login
+    document.getElementById('btn-login').addEventListener('click', () => {
+        signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value)
+            .catch(err => alert("Erro ao entrar: " + err.message));
+    });
+
+    // 4. Logout
+    document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+
+    // 5. Enviar Mensagem
+    async function sendMessage() {
+        const text = document.getElementById('message-input').value.trim();
+        if (text !== "" && auth.currentUser) {
+            await addDoc(colRef, {
+                texto: text,
+                uid: auth.currentUser.uid, // Usa o UID real do Firebase Auth
+                data: serverTimestamp()
+            });
+            document.getElementById('message-input').value = "";
+        }
+    }
+
+    // 6. Carregar Mensagens em Tempo Real
+    function carregarMensagens() {
+        const q = query(colRef, orderBy("data", "asc"));
+        onSnapshot(q, (snapshot) => {
+            messagesBox.innerHTML = "";
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                const msgDiv = document.createElement('div');
+                msgDiv.classList.add('message', data.uid === auth.currentUser.uid ? 'sent' : 'received');
+                msgDiv.textContent = data.texto;
+                messagesBox.appendChild(msgDiv);
+            });
+            messagesBox.scrollTop = messagesBox.scrollHeight;
+        });
+    }
+
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('message-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
+
+</script>
+</body>
+</html>
